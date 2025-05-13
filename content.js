@@ -89,6 +89,12 @@ function handleUpcomingMeeting(meeting) {
   
   // Only show popup for meetings starting within 3 minutes
   if (timeUntilMeeting <= 3 * 60 * 1000) {
+    // Check if we're already on the same meeting page
+    if (isAlreadyOnMeetingPage(meeting)) {
+      console.log('Already on the same meeting page, not showing popup');
+      return;
+    }
+    
     // If we already have a popup for this meeting, just update the timer
     if (currentMeeting && currentMeeting.id === meeting.id) {
       updateTimer(startTime);
@@ -106,6 +112,44 @@ function handleUpcomingMeeting(meeting) {
     }
     timerInterval = setInterval(() => updateTimer(startTime), 1000);
   }
+}
+
+// Check if we're already on the same meeting page
+function isAlreadyOnMeetingPage(meeting) {
+  // Get current URL
+  const currentUrl = window.location.href;
+  
+  // Extract meeting ID from current URL
+  const currentMeetingId = extractMeetingId(currentUrl);
+  
+  // Get meeting URL from the meeting object
+  let meetingUrl = '';
+  if (meeting.hangoutLink) {
+    meetingUrl = meeting.hangoutLink;
+  } else if (meeting.conferenceData && meeting.conferenceData.conferenceId) {
+    meetingUrl = `https://meet.google.com/${meeting.conferenceData.conferenceId}`;
+  } else if (meeting.location && meeting.location.includes('meet.google.com')) {
+    meetingUrl = meeting.location;
+  }
+  
+  // Extract meeting ID from meeting URL
+  const upcomingMeetingId = extractMeetingId(meetingUrl);
+  
+  // Compare the meeting IDs
+  return currentMeetingId && upcomingMeetingId && currentMeetingId === upcomingMeetingId;
+}
+
+// Extract meeting ID from a Google Meet URL
+function extractMeetingId(url) {
+  if (!url) return null;
+  
+  // Try to match patterns like:
+  // https://meet.google.com/abc-defg-hij
+  // https://meet.google.com/lookup/abc-defg-hij
+  const meetRegex = /meet\.google\.com\/(?:lookup\/)?([a-z0-9\-]+)/i;
+  const match = url.match(meetRegex);
+  
+  return match ? match[1] : null;
 }
 
 // Create or update the meeting popup
@@ -161,8 +205,8 @@ function createOrUpdatePopup(meeting) {
   
   // Add elements to popup
   popupHeader.appendChild(popupTitle);
+  popupHeader.appendChild(timerElement); // Move timer to header
   meetingPopup.appendChild(popupHeader);
-  meetingPopup.appendChild(timerElement);
   meetingPopup.appendChild(joinButton);
   
   // Add dragging functionality
