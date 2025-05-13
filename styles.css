@@ -1,0 +1,100 @@
+/* Styles for Google Meet Next Meeting Timer extension */
+
+/* Meeting popup styles */
+.meeting-popup {
+  position: fixed;
+  z-index: 9999;
+  width: 160px;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  border: 1px solid #dadce0;
+  transition: transform 0.2s ease-in-out;
+  opacity: 0.95;
+}
+
+.meeting-popup:hover {
+  opacity: 1;
+}
+
+.meeting-popup-header {
+  cursor: move;
+  padding: 2px 0;
+  user-select: none;
+  border-bottom: 1px solid #f1f3f4;
+  margin-bottom: 4px;
+}
+
+.meeting-popup-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #5f6368;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meeting-popup-timer {
+  font-size: 22px;
+  font-weight: 500;
+  color: #202124;
+  text-align: center;
+  padding: 4px 0;
+  transition: color 0.3s, transform 0.3s;
+}
+
+.meeting-popup-timer.urgent {
+  color: #ea4335;
+  animation: pulse 1s infinite;
+}
+
+.meeting-popup-timer.time-up {
+  color: #ea4335;
+  font-weight: 700;
+  transform: scale(1.05);
+}
+
+.meeting-popup-join-button {
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  margin-top: 2px;
+}
+
+.meeting-popup-join-button:hover {
+  background-color: #1765cc;
+}
+
+.meeting-popup-join-button.glow {
+  animation: glow 1.5s infinite alternate;
+  transform: scale(1.05);
+  background-color: #34a853;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px rgba(52, 168, 83, 0.5);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(52, 168, 83, 0.8);
+  }
+}

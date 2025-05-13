@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Meet Next Meeting Timer</title>
+  <style>
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      width: 320px;
+      padding: 16px;
+      margin: 0;
+      color: #202124;
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    
+    .logo {
+      width: 32px;
+      height: 32px;
+    }
+    
+    h1 {
+      font-size: 18px;
+      font-weight: 500;
+      margin: 0;
+    }
+    
+    .status-card {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 16px;
+      border: 1px solid #dadce0;
+    }
+    
+    .status-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #5f6368;
+    }
+    
+    .status-value {
+      font-size: 14px;
+      font-weight: 400;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .status-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+    
+    .status-icon.connected {
+      background-color: #34a853;
+    }
+    
+    .status-icon.disconnected {
+      background-color: #ea4335;
+    }
+    
+    .button {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .button:hover {
+      background-color: #1765cc;
+    }
+    
+    .button:disabled {
+      background-color: #dadce0;
+      color: #5f6368;
+      cursor: not-allowed;
+    }
+    
+    .meetings-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .meeting-item {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #dadce0;
+      font-size: 14px;
+    }
+    
+    .meeting-flex-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .meeting-info {
+      flex: 1;
+      min-width: 0; /* Allows text to truncate properly */
+    }
+    
+    .meeting-title {
+      font-weight: 500;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .meeting-time {
+      color: #5f6368;
+      font-size: 12px;
+    }
+    
+    .join-button {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background-color 0.2s;
+    }
+    
+    .join-button:hover {
+      background-color: #1765cc;
+    }
+    
+    .loading {
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+    
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #1a73e8;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Google Meet Next Meeting Timer</h1>
+    </div>
+    
+    <div class="status-card">
+      <div class="status-title">Google Calendar Connection</div>
+      <div class="status-value" id="auth-status">
+        <div class="status-icon disconnected" id="status-icon"></div>
+        <span id="status-text">Checking status...</span>
+      </div>
+    </div>
+    
+    <button id="auth-button" class="button">Sign in with Google</button>
+    
+    <div id="meetings-section" class="hidden">
+      <div class="status-title">Upcoming Google Meet Meetings</div>
+      <div id="meetings-loading" class="loading">
+        <div class="spinner"></div>
+      </div>
+      <div id="meetings-container" class="meetings-container hidden"></div>
+      <div id="no-meetings" class="hidden">No upcoming meetings found.</div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
