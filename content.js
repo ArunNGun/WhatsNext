@@ -9,11 +9,14 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 }
 
 // Global variables
-let meetingPopup = null;
-let timerInterval = null;
-let currentMeeting = null;
+let meetingPopups = {}; // Object to store multiple popups by meeting ID
+let timerIntervals = {}; // Object to store timer intervals by meeting ID
+let currentMeetings = {}; // Object to store current meetings by ID
+let ignoredMeetings = new Set(); // Set to track ignored meeting IDs (in-memory only)
+let pendingTimeouts = {}; // Object to track pending timeouts by meeting ID
 let dragOffset = { x: 0, y: 0 };
 let isDragging = false;
+let activePopup = null; // Currently dragged popup
 
 // Main initialization
 function initialize() {
@@ -59,30 +62,129 @@ function checkUpcomingMeetings() {
     }
     
     if (response && response.success && response.meetings && response.meetings.length > 0) {
-      // Find the next meeting
+      // Find upcoming meetings
       const now = new Date();
-      const nextMeetings = response.meetings
-        .filter(meeting => {
-          const startTime = new Date(meeting.start.dateTime);
-          // Only consider meetings starting within the next 10 minutes
-          return startTime > now && (startTime - now) <= 10 * 60 * 1000;
-        })
-        .sort((a, b) => {
-          return new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime();
-        });
       
-      if (nextMeetings.length > 0) {
-        handleUpcomingMeeting(nextMeetings[0]);
-      } else if (meetingPopup && !currentMeeting) {
-        // No upcoming meetings in the next 10 minutes, remove popup if it exists
-        removePopup();
+      // Track meetings that are within the display window (3 minutes)
+      const displayMeetings = [];
+      
+      // Track meetings that are approaching but not yet in display window
+      const approachingMeetings = [];
+      
+      // Process all meetings in the next 10 minutes
+      response.meetings.forEach(meeting => {
+        const startTime = new Date(meeting.start.dateTime);
+        const timeUntilMeeting = startTime - now;
+        
+        // Only consider meetings starting within the next 10 minutes
+        if (startTime > now && timeUntilMeeting <= 10 * 60 * 1000) {
+          if (timeUntilMeeting <= 3 * 60 * 1000) {
+            // Meeting is within 3 minutes - should be displayed
+            displayMeetings.push(meeting);
+          } else {
+            // Meeting is approaching but not yet within 3 minutes
+            approachingMeetings.push({
+              meeting: meeting,
+              timeUntil: timeUntilMeeting
+            });
+          }
+        }
+      });
+      
+      // Sort meetings by start time
+      displayMeetings.sort((a, b) => {
+        return new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime();
+      });
+      
+      // Handle meetings that should be displayed now
+      if (displayMeetings.length > 0) {
+        // Handle each meeting that should be displayed
+        displayMeetings.forEach(meeting => {
+          handleUpcomingMeeting(meeting);
+        });
+        
+        // Clean up any popups for meetings that are no longer upcoming
+        cleanupOldMeetings(displayMeetings);
+      } else {
+        // No meetings to display right now, remove all popups
+        removeAllPopups();
       }
+      
+      // Set timers for approaching meetings
+      approachingMeetings.forEach(({ meeting, timeUntil }) => {
+        // Skip if meeting is ignored
+        if (ignoredMeetings.has(meeting.id)) {
+          return;
+        }
+        
+        // Clear any existing timeout for this meeting
+        if (pendingTimeouts[meeting.id]) {
+          clearTimeout(pendingTimeouts[meeting.id]);
+        }
+        
+        // Calculate time until we need to show the popup (time until meeting minus 3 minutes)
+        const timeUntilDisplay = timeUntil - (3 * 60 * 1000);
+        
+        // Set a timeout to show the popup when the meeting is 3 minutes away
+        console.log(`Setting timeout for meeting "${meeting.summary}" in ${Math.floor(timeUntilDisplay/1000)} seconds`);
+        pendingTimeouts[meeting.id] = setTimeout(() => {
+          console.log(`Time to show popup for meeting: ${meeting.summary}`);
+          // Remove from pending timeouts
+          delete pendingTimeouts[meeting.id];
+          // Show the popup
+          handleUpcomingMeeting(meeting);
+        }, timeUntilDisplay);
+      });
     }
+  });
+}
+
+// Clean up popups for meetings that are no longer upcoming
+function cleanupOldMeetings(displayMeetings) {
+  // Get IDs of meetings that should be displayed
+  const displayIds = displayMeetings.map(meeting => meeting.id);
+  
+  // Find meetings in our tracking that should no longer be displayed
+  Object.keys(currentMeetings).forEach(meetingId => {
+    // If this meeting is not in the display list and not ignored
+    if (!displayIds.includes(meetingId) && !ignoredMeetings.has(meetingId)) {
+      // Check if the meeting has already started
+      const meeting = currentMeetings[meetingId];
+      const now = new Date();
+      const startTime = new Date(meeting.start.dateTime);
+      
+      // If the meeting has started more than 5 minutes ago, remove it
+      if (now - startTime > 5 * 60 * 1000) {
+        removePopup(meetingId);
+      }
+      // Otherwise, keep the popup for meetings that have just started
+    } else if (!displayIds.includes(meetingId) && ignoredMeetings.has(meetingId)) {
+      // Always remove popups for ignored meetings
+      removePopup(meetingId);
+    }
+  });
+}
+
+// Remove all popups
+function removeAllPopups() {
+  Object.keys(meetingPopups).forEach(meetingId => {
+    removePopup(meetingId);
   });
 }
 
 // Handle upcoming meeting
 function handleUpcomingMeeting(meeting) {
+  if (!meeting.id) {
+    console.error('Meeting has no ID, cannot handle it');
+    return;
+  }
+  
+  // Check if this meeting has been ignored
+  if (ignoredMeetings.has(meeting.id)) {
+    console.log('Meeting has been ignored, not showing popup for:', meeting.summary);
+    return;
+  }
+  
   const now = new Date();
   const startTime = new Date(meeting.start.dateTime);
   const timeUntilMeeting = startTime - now;
@@ -91,26 +193,32 @@ function handleUpcomingMeeting(meeting) {
   if (timeUntilMeeting <= 3 * 60 * 1000) {
     // Check if we're already on the same meeting page
     if (isAlreadyOnMeetingPage(meeting)) {
-      console.log('Already on the same meeting page, not showing popup');
+      console.log('Already on the same meeting page, not showing popup for:', meeting.summary);
       return;
     }
     
     // If we already have a popup for this meeting, just update the timer
-    if (currentMeeting && currentMeeting.id === meeting.id) {
-      updateTimer(startTime);
+    if (currentMeetings[meeting.id]) {
+      updateTimer(meeting.id, startTime);
       return;
     }
     
     // Otherwise, create a new popup
-    currentMeeting = meeting;
+    currentMeetings[meeting.id] = meeting;
     createOrUpdatePopup(meeting);
     
     // Start the timer
-    updateTimer(startTime);
-    if (timerInterval) {
-      clearInterval(timerInterval);
+    updateTimer(meeting.id, startTime);
+    if (timerIntervals[meeting.id]) {
+      clearInterval(timerIntervals[meeting.id]);
     }
-    timerInterval = setInterval(() => updateTimer(startTime), 1000);
+    timerIntervals[meeting.id] = setInterval(() => updateTimer(meeting.id, startTime), 1000);
+    
+    // Clear any pending timeout for this meeting
+    if (pendingTimeouts[meeting.id]) {
+      clearTimeout(pendingTimeouts[meeting.id]);
+      delete pendingTimeouts[meeting.id];
+    }
   }
 }
 
@@ -154,9 +262,11 @@ function extractMeetingId(url) {
 
 // Create or update the meeting popup
 function createOrUpdatePopup(meeting) {
+  const meetingId = meeting.id;
+  
   // If popup already exists, update it
-  if (meetingPopup) {
-    const titleElement = meetingPopup.querySelector('.meeting-popup-title');
+  if (meetingPopups[meetingId]) {
+    const titleElement = meetingPopups[meetingId].querySelector('.meeting-popup-title');
     if (titleElement) {
       titleElement.textContent = meeting.summary || 'Next Meeting';
     }
@@ -164,9 +274,10 @@ function createOrUpdatePopup(meeting) {
   }
   
   // Create popup container
-  meetingPopup = document.createElement('div');
-  meetingPopup.className = 'meeting-popup';
-  meetingPopup.id = 'meeting-next-popup';
+  const popup = document.createElement('div');
+  popup.className = 'meeting-popup';
+  popup.id = `meeting-popup-${meetingId}`;
+  popup.dataset.meetingId = meetingId;
   
   // Create popup header (for dragging)
   const popupHeader = document.createElement('div');
@@ -180,8 +291,12 @@ function createOrUpdatePopup(meeting) {
   // Create timer element
   const timerElement = document.createElement('div');
   timerElement.className = 'meeting-popup-timer';
-  timerElement.id = 'meeting-timer';
+  timerElement.id = `meeting-timer-${meetingId}`;
   timerElement.textContent = '00:00';
+  
+  // Create buttons container
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.className = 'meeting-popup-buttons';
   
   // Create join button
   const joinButton = document.createElement('button');
@@ -203,40 +318,79 @@ function createOrUpdatePopup(meeting) {
     }
   });
   
+  // Create ignore button
+  const ignoreButton = document.createElement('button');
+  ignoreButton.className = 'meeting-popup-ignore-button';
+  ignoreButton.textContent = 'Ignore';
+  ignoreButton.addEventListener('click', () => {
+    // Add meeting ID to ignored meetings set
+    ignoredMeetings.add(meeting.id);
+    
+    // Remove the popup
+    removePopup(meeting.id);
+    
+    console.log('Ignored meeting:', meeting.summary);
+  });
+  
+  // Add buttons to container
+  buttonsContainer.appendChild(joinButton);
+  buttonsContainer.appendChild(ignoreButton);
+  
   // Add elements to popup
   popupHeader.appendChild(popupTitle);
   popupHeader.appendChild(timerElement); // Move timer to header
-  meetingPopup.appendChild(popupHeader);
-  meetingPopup.appendChild(joinButton);
+  popup.appendChild(popupHeader);
+  popup.appendChild(buttonsContainer);
   
   // Add dragging functionality
-  popupHeader.addEventListener('mousedown', startDragging);
-  document.addEventListener('mousemove', dragPopup);
-  document.addEventListener('mouseup', stopDragging);
+  popupHeader.addEventListener('mousedown', (e) => startDragging(e, popup));
   
   // Add popup to page
-  document.body.appendChild(meetingPopup);
+  document.body.appendChild(popup);
   
-  // Position popup in the bottom right corner initially
-  meetingPopup.style.right = '16px';
-  meetingPopup.style.bottom = '16px';
+  // Store the popup reference
+  meetingPopups[meetingId] = popup;
+  
+  // Position popups in a cascading manner
+  positionPopup(popup, Object.keys(meetingPopups).length - 1);
+}
+
+// Position popup in a cascading manner
+function positionPopup(popup, index) {
+  // Start from bottom right and cascade upward
+  const baseRight = 16;
+  const baseBottom = 16;
+  const offsetPerPopup = 30; // Offset each popup by this amount
+  
+  // Reset any left/top positioning that might have been set
+  popup.style.left = 'auto';
+  popup.style.top = 'auto';
+  
+  // Apply right/bottom positioning
+  popup.style.right = `${baseRight}px`;
+  popup.style.bottom = `${baseBottom + (index * offsetPerPopup)}px`;
+  
+  // Ensure the popup maintains its correct size
+  popup.style.height = 'auto';
+  popup.style.width = '140px'; // Match the width from CSS
 }
 
 // Update the timer display
-function updateTimer(startTime) {
-  if (!meetingPopup) return;
+function updateTimer(meetingId, startTime) {
+  const popup = meetingPopups[meetingId];
+  if (!popup) return;
   
   const now = new Date();
   const timeUntilMeeting = startTime - now;
   
   // If meeting has started, remove popup after a short delay
   if (timeUntilMeeting <= 0) {
-    const joinButton = meetingPopup.querySelector('.meeting-popup-join-button');
+    const joinButton = popup.querySelector('.meeting-popup-join-button');
     if (joinButton) {
       joinButton.classList.add('glow');
     }
     
-    const timerElement = meetingPopup.querySelector('#meeting-timer');
+    const timerElement = popup.querySelector(`#meeting-timer-${meetingId}`);
     if (timerElement) {
       timerElement.textContent = 'Now!';
       timerElement.classList.add('time-up');
@@ -244,7 +398,7 @@ function updateTimer(startTime) {
     
     // Remove popup 5 minutes after meeting start
     if (timeUntilMeeting < -5 * 60 * 1000) {
-      removePopup();
+      removePopup(meetingId);
     }
     
     return;
@@ -256,7 +410,7 @@ function updateTimer(startTime) {
   
   const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
-  const timerElement = meetingPopup.querySelector('#meeting-timer');
+  const timerElement = popup.querySelector(`#meeting-timer-${meetingId}`);
   if (timerElement) {
     timerElement.textContent = formattedTime;
   }
@@ -270,51 +424,86 @@ function updateTimer(startTime) {
 }
 
 // Remove the popup
-function removePopup() {
-  if (meetingPopup && meetingPopup.parentNode) {
-    meetingPopup.parentNode.removeChild(meetingPopup);
-    meetingPopup = null;
+function removePopup(meetingId) {
+  const popup = meetingPopups[meetingId];
+  if (popup && popup.parentNode) {
+    popup.parentNode.removeChild(popup);
+    delete meetingPopups[meetingId];
   }
   
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
+  if (timerIntervals[meetingId]) {
+    clearInterval(timerIntervals[meetingId]);
+    delete timerIntervals[meetingId];
   }
   
-  currentMeeting = null;
+  if (pendingTimeouts[meetingId]) {
+    clearTimeout(pendingTimeouts[meetingId]);
+    delete pendingTimeouts[meetingId];
+  }
+  
+  if (currentMeetings[meetingId]) {
+    delete currentMeetings[meetingId];
+  }
+  
+  // Reposition remaining popups
+  repositionPopups();
+}
+
+// Reposition all popups after one is removed
+function repositionPopups() {
+  const popupIds = Object.keys(meetingPopups);
+  popupIds.forEach((id, index) => {
+    const popup = meetingPopups[id];
+    
+    // Only reposition if the popup is using the default positioning (right/bottom)
+    // Don't reposition popups that have been manually dragged (using left/top)
+    if (popup.style.left === 'auto' || popup.style.top === 'auto') {
+      positionPopup(popup, index);
+    }
+  });
 }
 
 // Start dragging the popup
-function startDragging(e) {
+function startDragging(e, popup) {
   isDragging = true;
+  activePopup = popup;
   
   // Calculate the offset of the mouse pointer from the popup's top-left corner
-  const rect = meetingPopup.getBoundingClientRect();
+  const rect = popup.getBoundingClientRect();
   dragOffset.x = e.clientX - rect.left;
   dragOffset.y = e.clientY - rect.top;
   
   // Prevent text selection during drag
   e.preventDefault();
+  
+  // Add mousemove and mouseup listeners
+  document.addEventListener('mousemove', dragPopup);
+  document.addEventListener('mouseup', stopDragging);
 }
 
 // Drag the popup
 function dragPopup(e) {
-  if (!isDragging || !meetingPopup) return;
+  if (!isDragging || !activePopup) return;
   
   // Calculate new position
   const x = e.clientX - dragOffset.x;
   const y = e.clientY - dragOffset.y;
   
   // Apply new position
-  meetingPopup.style.left = `${x}px`;
-  meetingPopup.style.top = `${y}px`;
+  activePopup.style.left = `${x}px`;
+  activePopup.style.top = `${y}px`;
   
   // Remove right/bottom positioning if we're using left/top
-  meetingPopup.style.right = 'auto';
-  meetingPopup.style.bottom = 'auto';
+  activePopup.style.right = 'auto';
+  activePopup.style.bottom = 'auto';
 }
 
 // Stop dragging
 function stopDragging() {
   isDragging = false;
+  activePopup = null;
+  
+  // Remove event listeners
+  document.removeEventListener('mousemove', dragPopup);
+  document.removeEventListener('mouseup', stopDragging);
 }
