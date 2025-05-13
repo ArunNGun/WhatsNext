@@ -126,13 +126,29 @@ function displayMeetings(meetings) {
   // Clear existing meetings
   meetingsContainer.innerHTML = '';
   
+  // Get current time
+  const now = new Date();
+  
+  // Filter out past meetings
+  const futureMeetings = meetings.filter(meeting => {
+    const startTime = new Date(meeting.start.dateTime);
+    return startTime > now; // Only include meetings that haven't started yet
+  });
+  
   // Sort meetings by start time
-  const sortedMeetings = [...meetings].sort((a, b) => {
+  const sortedMeetings = [...futureMeetings].sort((a, b) => {
     return new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime();
   });
   
   // Only show the next 5 meetings
   const upcomingMeetings = sortedMeetings.slice(0, 5);
+  
+  if (upcomingMeetings.length === 0) {
+    // No upcoming meetings
+    noMeetingsMessage.classList.remove('hidden');
+    meetingsContainer.classList.add('hidden');
+    return;
+  }
   
   // Add each meeting to the container
   upcomingMeetings.forEach(meeting => {
