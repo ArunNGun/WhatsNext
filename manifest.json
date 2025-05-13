@@ -3,6 +3,12 @@
   "name": "What's Next",
   "version": "1.0.0",
   "description": "Shows a timer for upcoming meetings in Google Meet",
+  "author": "Arun",
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
   "permissions": [
     "identity",
     "storage",
@@ -24,7 +30,12 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
   },
   "oauth2": {
     "client_id": "97436317018-lvsvbu8rtol9h2c4fcefiiin4d0tnesg.apps.googleusercontent.com",
