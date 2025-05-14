@@ -15,21 +15,19 @@ A Chrome extension that shows a timer for upcoming meetings in Google Meet and p
 
 ## Installation
 
-### From Chrome Web Store (Recommended)
+### From Chrome Web Store (Future release)
 
 1. Visit the Chrome Web Store (link to be added)
 2. Click "Add to Chrome"
 3. Follow the prompts to install the extension
 
-### Manual Installation (Developer Mode)
+### Manual Installation (Developer Mode) (Recommended)
 
 1. Download or clone this repository
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" in the top-right corner
 4. Click "Load unpacked" and select the extension directory
 5. The extension should now appear in your extensions list
-
-**Note:** The extension currently doesn't include icon files. This is normal and won't affect functionality. You can add your own icons later by following the instructions in `images/README.md`.
 
 ## Setup
 
